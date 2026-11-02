@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Task Manager — NextJS + tRPC
 
-## Getting Started
+Sistema simples de gerenciamento de tarefas. Backend em memória (sem banco de
+dados), exposto via tRPC, consumido por um frontend NextJS.
 
-First, run the development server:
+## Stack
+
+- Next.js 15 (App Router)
+- tRPC 11 + React Query
+- Zod (validação)
+- Tailwind CSS
+- TypeScript
+
+## Como executar
+
+Requer Node.js 18.18 ou mais recente.
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse `http://localhost:3000` (se a porta estiver ocupada, o terminal mostra
+qual porta o Next.js usou no lugar).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+> Os dados ficam só em memória (`src/server/db.ts`) e somem a cada reinício do
+> servidor — assim mesmo, por pedido do desafio.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Decisões de arquitetura
 
-## Learn More
+- **Listagem com SSR real:** a página inicial busca as tarefas direto no
+  servidor (sem passar por HTTP), então a lista já chega pronta no HTML. Por
+  isso também forcei `dynamic = "force-dynamic"` nela — sem isso o Next
+  tentaria gerar essa página como estática, e a lista mudaria sem ela
+  atualizar.
+- **Mesma rota para SSR e infinite scroll:** o procedure `task.list` aceita um
+  cursor e serve tanto a primeira carga quanto o scroll infinito, pra não
+  duplicar lógica de paginação.
+- **Validação em duas camadas:** o formulário bloqueia título vazio na hora,
+  e o backend valida de novo (o cliente nunca é confiável sozinho).
+- **Título duplicado não é permitido:** criar ou editar uma tarefa com um
+  título já existente (ignorando maiúsculas/espaços) dá erro.
+- **Erros com mensagem clara:** editar/excluir uma tarefa que não existe mais
+  retorna um erro explicado, mostrado num toast.
+- **Criar/editar abre como modal:** mas `/tasks/new` e `/tasks/[id]/edit`
+  continuam sendo páginas de verdade (funcionam com refresh ou link direto).
+  É o padrão de "intercepting routes" do Next — ao fechar o modal, uso
+  `router.back()` em vez de navegar pra "/", porque só assim o Next
+  realmente desfaz o modal.
 
-To learn more about Next.js, take a look at the following resources:
+## Estrutura
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+  server/
+    db.ts                       # "banco" em memória
+    routers/task.ts              # CRUD de tarefas
+  trpc/
+    client.ts                    # hooks usados nos componentes
+    server.ts                     # acesso direto ao backend (usado no SSR)
+  components/
+    TaskList.tsx                  # listagem + infinite scroll + exclusão
+    TaskForm.tsx                   # formulário de criação/edição
+    Modal.tsx                       # dialog usado pelas rotas interceptadas
+    ToastProvider.tsx                # feedback de sucesso/erro
+    Spinner.tsx                       # loading
+  app/
+    page.tsx                         # listagem (SSR)
+    tasks/new/, tasks/[id]/edit/       # páginas reais de criação/edição
+    @modal/(.)tasks/...                 # as mesmas telas, como modal
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Bônus implementados
 
-## Deploy on Vercel
+- Infinite scroll na listagem.
+- Comentários nos pontos menos óbvios e este README.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## O que faria diferente com mais tempo
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Persistência real (hoje os dados somem a cada restart, por pedido do
+  desafio).
+- Testes automatizados.
+- Autenticação, se o sistema deixasse de ser de um usuário só.
